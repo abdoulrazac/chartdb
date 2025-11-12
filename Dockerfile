@@ -4,7 +4,7 @@ FROM node:22-alpine AS frontend-builder
 ARG VITE_OPENAI_API_KEY
 ARG VITE_OPENAI_API_ENDPOINT
 ARG VITE_LLM_MODEL_NAME
-ARG VITE_API_URL=http://localhost
+ARG VITE_API_URL=""
 ARG VITE_HIDE_CHARTDB_CLOUD
 ARG VITE_DISABLE_ANALYTICS
 ARG VITE_APP_URL
@@ -66,7 +66,8 @@ RUN chmod +x /entrypoint.sh /start-services.sh && \
 ENV PORT=3000
 ENV FRONTEND_URL=http://localhost
 ENV DIAGRAM_TTL=0
-# REDIS_URL should be passed at runtime via docker run -e REDIS_URL=...
+ENV REDIS_URL=redis://localhost:6379
+# Override REDIS_URL at runtime: docker run -e REDIS_URL=redis://your-redis:6379
 
 # Expose both ports
 EXPOSE 80 3000

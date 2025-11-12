@@ -31,15 +31,28 @@ redis.on('connect', () => {
 });
 
 // Middleware
-app.use(
-    cors({
-        origin: FRONTEND_URL,
-        methods: ['GET', 'POST', 'DELETE'],
-        allowedHeaders: ['Content-Type'],
-    })
-);
+// Allow all origins when frontend URL is localhost (for Docker deployments)
+const corsOptions = FRONTEND_URL.includes('localhost')
+    ? {
+          origin: true,
+          methods: ['GET', 'POST', 'DELETE'],
+          allowedHeaders: ['Content-Type'],
+          credentials: true,
+      }
+    : {
+          origin: FRONTEND_URL,
+          methods: ['GET', 'POST', 'DELETE'],
+          allowedHeaders: ['Content-Type'],
+      };
+
+app.use(cors(corsOptions));
 
 app.use(express.json({ limit: '10mb' }));
+
+// Request logging middleware
+app.use((req: Request, res: Response, next) => {
+    next();
+});
 
 // Health check endpoint
 app.get('/health', (req: Request, res: Response) => {
