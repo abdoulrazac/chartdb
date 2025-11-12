@@ -168,4 +168,5 @@ Thank you for helping us make ChartDB better for everyone :heart:.
 
 ## License
 
-ChartDB is licensed under the [GNU Affero General Public License v3.0](LICENSE)
+This is a modified version of ChartDB (licensed under AGPLv3).
+Changes made by Nhat Bich Son on 2025-11-12.
