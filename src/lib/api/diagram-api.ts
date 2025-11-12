@@ -1,0 +1,124 @@
+import type { Diagram } from '../domain/diagram';
+
+const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+
+export interface DiagramApiResponse {
+    id: string;
+    message: string;
+    expiresIn: number;
+}
+
+export interface DiagramTTLResponse {
+    id: string;
+    ttl: number;
+    expiresAt: string | null;
+}
+
+/**
+ * Upload a diagram to the backend for sharing
+ */
+export const uploadDiagram = async (diagram: Diagram): Promise<string> => {
+    const response = await fetch(`${API_URL}/api/diagrams`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            id: diagram.id,
+            data: diagram,
+        }),
+    });
+
+    if (!response.ok) {
+        const error = await response.json().catch(() => ({}));
+        throw new Error(error.error || 'Failed to upload diagram');
+    }
+
+    const result: DiagramApiResponse = await response.json();
+    return result.id;
+};
+
+/**
+ * Fetch a diagram from the backend by ID
+ */
+export const fetchDiagram = async (id: string): Promise<Diagram | null> => {
+    try {
+        const response = await fetch(`${API_URL}/api/diagrams/${id}`);
+
+        if (response.status === 404) {
+            return null; // Diagram not found or expired
+        }
+
+        if (!response.ok) {
+            const error = await response.json().catch(() => ({}));
+            throw new Error(error.error || 'Failed to fetch diagram');
+        }
+
+        const diagram: Diagram = await response.json();
+        return diagram;
+    } catch (error) {
+        console.error('Error fetching diagram from backend:', error);
+        return null;
+    }
+};
+
+/**
+ * Delete a diagram from the backend (optional)
+ */
+export const deleteDiagram = async (id: string): Promise<boolean> => {
+    try {
+        const response = await fetch(`${API_URL}/api/diagrams/${id}`, {
+            method: 'DELETE',
+        });
+
+        if (response.status === 404) {
+            return false; // Already deleted or not found
+        }
+
+        if (!response.ok) {
+            throw new Error('Failed to delete diagram');
+        }
+
+        return true;
+    } catch (error) {
+        console.error('Error deleting diagram from backend:', error);
+        return false;
+    }
+};
+
+/**
+ * Get diagram TTL (time to live) information
+ */
+export const getDiagramTTL = async (
+    id: string
+): Promise<DiagramTTLResponse | null> => {
+    try {
+        const response = await fetch(`${API_URL}/api/diagrams/${id}/ttl`);
+
+        if (response.status === 404) {
+            return null;
+        }
+
+        if (!response.ok) {
+            throw new Error('Failed to get diagram TTL');
+        }
+
+        const ttl: DiagramTTLResponse = await response.json();
+        return ttl;
+    } catch (error) {
+        console.error('Error fetching diagram TTL:', error);
+        return null;
+    }
+};
+
+/**
+ * Check if backend API is available
+ */
+export const checkBackendHealth = async (): Promise<boolean> => {
+    try {
+        const response = await fetch(`${API_URL}/health`, {
+            method: 'GET',
+        });
+        return response.ok;
+    } catch {
+        return false;
+    }
+};

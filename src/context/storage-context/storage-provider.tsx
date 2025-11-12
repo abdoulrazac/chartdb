@@ -12,10 +12,22 @@ import type { Area } from '@/lib/domain/area';
 import type { DBCustomType } from '@/lib/domain/db-custom-type';
 import type { DiagramFilter } from '@/lib/domain/diagram-filter/diagram-filter';
 import type { Note } from '@/lib/domain/note';
+import { fetchDiagram, uploadDiagram } from '@/lib/api/diagram-api';
 
 export const StorageProvider: React.FC<React.PropsWithChildren> = ({
     children,
 }) => {
+    // Helper function to sync diagram to backend (Redis)
+    const syncDiagramToBackend = useCallback(async (diagram: Diagram) => {
+        try {
+            await uploadDiagram(diagram);
+            console.log(`✓ Synced diagram "${diagram.name}" to backend`);
+        } catch (error) {
+            console.warn('Failed to sync diagram to backend:', error);
+            // Don't throw - syncing is optional, local save still works
+        }
+    }, []);
+
     const db = useMemo(() => {
         const dexieDB = new Dexie('ChartDB') as Dexie & {
             diagrams: EntityTable<
@@ -675,6 +687,9 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
             );
 
             await Promise.all(promises);
+
+            // Auto-sync to backend (Redis) after saving locally
+            await syncDiagramToBackend(diagram);
         },
         [
             db,
@@ -684,6 +699,7 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
             addRelationship,
             addTable,
             addNote,
+            syncDiagramToBackend,
         ]
     );
 
@@ -783,12 +799,26 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
                 includeNotes: false,
             }
         ): Promise<Diagram | undefined> => {
+            // Try to get diagram from local IndexedDB first
             const diagram = await db.diagrams.get(id);
 
             if (!diagram) {
+                // Not found locally, try fetching from backend
+                console.log(
+                    `Diagram ${id} not found locally, trying backend...`
+                );
+                const remoteDiagram = await fetchDiagram(id);
+
+                if (remoteDiagram) {
+                    console.log(`Diagram ${id} loaded from backend`);
+                    // Return the remote diagram directly (already includes all data)
+                    return remoteDiagram;
+                }
+
                 return undefined;
             }
 
+            // Diagram found locally, load related entities
             if (options.includeTables) {
                 diagram.tables = await listTables(id);
             }
@@ -856,8 +886,23 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
                     }),
                 ]);
             }
+
+            // Auto-sync to backend (Redis) after updating
+            // Fetch the full diagram with all related entities
+            const fullDiagram = await getDiagram(attributes.id || id, {
+                includeTables: true,
+                includeRelationships: true,
+                includeDependencies: true,
+                includeAreas: true,
+                includeCustomTypes: true,
+                includeNotes: true,
+            });
+
+            if (fullDiagram) {
+                await syncDiagramToBackend(fullDiagram);
+            }
         },
-        [db]
+        [db, getDiagram, syncDiagramToBackend]
     );
 
     const deleteDiagram: StorageContext['deleteDiagram'] = useCallback(

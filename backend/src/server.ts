@@ -1,0 +1,197 @@
+import express, { type Request, type Response } from 'express';
+import { createClient } from 'redis';
+import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+let REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
+
+// Ensure Redis URL has protocol
+if (!REDIS_URL.startsWith('redis://') && !REDIS_URL.startsWith('rediss://')) {
+    REDIS_URL = `redis://${REDIS_URL}`;
+}
+
+const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+// TTL disabled - diagrams never expire
+const DIAGRAM_TTL = parseInt(process.env.DIAGRAM_TTL || '0', 10); // 0 = no expiration
+
+// Create Redis client
+const redis = createClient({ url: REDIS_URL });
+
+// Redis error handling
+redis.on('error', (err) => {
+    console.error('Redis Client Error:', err);
+});
+
+redis.on('connect', () => {
+    console.log('✓ Connected to Redis');
+});
+
+// Middleware
+app.use(
+    cors({
+        origin: FRONTEND_URL,
+        methods: ['GET', 'POST', 'DELETE'],
+        allowedHeaders: ['Content-Type'],
+    })
+);
+
+app.use(express.json({ limit: '10mb' }));
+
+// Health check endpoint
+app.get('/health', (req: Request, res: Response) => {
+    res.json({
+        status: 'ok',
+        redis: redis.isOpen ? 'connected' : 'disconnected',
+    });
+});
+
+// Save/Update diagram
+app.post('/api/diagrams', async (req: Request, res: Response) => {
+    try {
+        const { id, data } = req.body;
+
+        if (!id || !data) {
+            return res.status(400).json({
+                error: 'Missing required fields: id and data',
+            });
+        }
+
+        const key = `diagram:${id}`;
+
+        // Store in Redis with or without TTL based on config
+        if (DIAGRAM_TTL > 0) {
+            // With expiration
+            await redis.setEx(key, DIAGRAM_TTL, JSON.stringify(data));
+        } else {
+            // No expiration - persist forever
+            await redis.set(key, JSON.stringify(data));
+        }
+
+        console.log(
+            `✓ Saved diagram: ${id}${DIAGRAM_TTL > 0 ? ` (expires in ${DIAGRAM_TTL}s)` : ' (no expiration)'}`
+        );
+
+        res.json({
+            id,
+            message: 'Diagram saved successfully',
+            expiresIn: DIAGRAM_TTL > 0 ? DIAGRAM_TTL : null,
+        });
+    } catch (error) {
+        console.error('Error saving diagram:', error);
+        res.status(500).json({ error: 'Failed to save diagram' });
+    }
+});
+
+// Get diagram by ID
+app.get('/api/diagrams/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const key = `diagram:${id}`;
+
+        const diagram = await redis.get(key);
+
+        if (!diagram) {
+            return res.status(404).json({
+                error: 'Diagram not found or expired',
+            });
+        }
+
+        console.log(`✓ Retrieved diagram: ${id}`);
+
+        res.json(JSON.parse(diagram));
+    } catch (error) {
+        console.error('Error retrieving diagram:', error);
+        res.status(500).json({ error: 'Failed to retrieve diagram' });
+    }
+});
+
+// Delete diagram (optional)
+app.delete('/api/diagrams/:id', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const key = `diagram:${id}`;
+
+        const deleted = await redis.del(key);
+
+        if (deleted === 0) {
+            return res.status(404).json({
+                error: 'Diagram not found',
+            });
+        }
+
+        console.log(`✓ Deleted diagram: ${id}`);
+
+        res.json({ message: 'Diagram deleted successfully' });
+    } catch (error) {
+        console.error('Error deleting diagram:', error);
+        res.status(500).json({ error: 'Failed to delete diagram' });
+    }
+});
+
+// Get diagram TTL (time to live)
+app.get('/api/diagrams/:id/ttl', async (req: Request, res: Response) => {
+    try {
+        const { id } = req.params;
+        const key = `diagram:${id}`;
+
+        const ttl = await redis.ttl(key);
+
+        if (ttl === -2) {
+            return res.status(404).json({
+                error: 'Diagram not found',
+            });
+        }
+
+        res.json({
+            id,
+            ttl,
+            expiresAt:
+                ttl > 0
+                    ? new Date(Date.now() + ttl * 1000).toISOString()
+                    : null,
+        });
+    } catch (error) {
+        console.error('Error getting diagram TTL:', error);
+        res.status(500).json({ error: 'Failed to get diagram TTL' });
+    }
+});
+
+// Start server
+const startServer = async () => {
+    try {
+        // Connect to Redis
+        await redis.connect();
+
+        // Start Express server
+        app.listen(PORT, () => {
+            console.log(
+                `\n🚀 ChartDB Backend API running on http://localhost:${PORT}`
+            );
+            console.log(`📊 Health check: http://localhost:${PORT}/health`);
+            if (DIAGRAM_TTL > 0) {
+                console.log(
+                    `⏱️  Diagram TTL: ${DIAGRAM_TTL} seconds (${Math.floor(DIAGRAM_TTL / 86400)} days)`
+                );
+            } else {
+                console.log(`♾️  Diagram TTL: No expiration (persist forever)`);
+            }
+            console.log('');
+        });
+    } catch (error) {
+        console.error('Failed to start server:', error);
+        process.exit(1);
+    }
+};
+
+// Graceful shutdown
+process.on('SIGINT', async () => {
+    console.log('\n🛑 Shutting down gracefully...');
+    await redis.quit();
+    process.exit(0);
+});
+
+startServer();
