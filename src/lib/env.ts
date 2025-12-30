@@ -13,4 +13,4 @@ export const DISABLE_ANALYTICS: boolean =
     (window?.env?.DISABLE_ANALYTICS ??
         import.meta.env.VITE_DISABLE_ANALYTICS) === 'true';
 export const API_URL: string =
-    import.meta.env.VITE_API_URL ?? 'http://localhost:3000';
+    import.meta.env.VITE_API_URL ?? '';

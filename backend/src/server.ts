@@ -1,12 +1,12 @@
-import express, { type Request, type Response } from 'express';
-import { createClient } from 'redis';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import express, { type Request, type Response } from 'express';
+import { createClient } from 'redis';
 
 dotenv.config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3080;
 let REDIS_URL = process.env.REDIS_URL || 'redis://localhost:6379';
 
 // Ensure Redis URL has protocol
