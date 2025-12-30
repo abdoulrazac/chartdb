@@ -63,14 +63,14 @@ RUN chmod +x /entrypoint.sh /start-services.sh && \
     mkdir -p /run/nginx
 
 # Backend environment variables with defaults
-ENV PORT=3000
+ENV PORT=3080
 ENV FRONTEND_URL=http://localhost
 ENV DIAGRAM_TTL=0
 ENV REDIS_URL=redis://localhost:6379
 # Override REDIS_URL at runtime: docker run -e REDIS_URL=redis://your-redis:6379
 
 # Expose both ports
-EXPOSE 80 3000
+EXPOSE 80 3080
 
 # Start both services
 CMD ["/start-services.sh"]

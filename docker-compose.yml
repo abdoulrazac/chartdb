@@ -25,7 +25,7 @@ services:
         - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY:-}
         - VITE_OPENAI_API_ENDPOINT=${VITE_OPENAI_API_ENDPOINT:-}
         - VITE_LLM_MODEL_NAME=${VITE_LLM_MODEL_NAME:-}
-        - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3080}
         - VITE_HIDE_CHARTDB_CLOUD=${VITE_HIDE_CHARTDB_CLOUD:-false}
         - VITE_DISABLE_ANALYTICS=${VITE_DISABLE_ANALYTICS:-false}
         - VITE_APP_URL=${VITE_APP_URL:-}
@@ -35,9 +35,9 @@ services:
     restart: unless-stopped
     ports:
       - "8080:80"
-      - "3000:3000"
+      - "3080:3080"
     environment:
-      - PORT=3000
+      - PORT=3080
       - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
       - DIAGRAM_TTL=${DIAGRAM_TTL:-0}
       - REDIS_URL=redis://redis:6379
