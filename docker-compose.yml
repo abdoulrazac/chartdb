@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: chartdb-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - chartdb-network
+
+  chartdb:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        - VITE_OPENAI_API_KEY=${VITE_OPENAI_API_KEY:-}
+        - VITE_OPENAI_API_ENDPOINT=${VITE_OPENAI_API_ENDPOINT:-}
+        - VITE_LLM_MODEL_NAME=${VITE_LLM_MODEL_NAME:-}
+        - VITE_API_URL=${VITE_API_URL:-http://localhost:3000}
+        - VITE_HIDE_CHARTDB_CLOUD=${VITE_HIDE_CHARTDB_CLOUD:-false}
+        - VITE_DISABLE_ANALYTICS=${VITE_DISABLE_ANALYTICS:-false}
+        - VITE_APP_URL=${VITE_APP_URL:-}
+        - VITE_HOST_URL=${VITE_HOST_URL:-}
+        - VITE_IS_CHARTDB_IO=${VITE_IS_CHARTDB_IO:-false}
+    container_name: chartdb-app
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "3000:3000"
+    environment:
+      - PORT=3000
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost}
+      - DIAGRAM_TTL=${DIAGRAM_TTL:-0}
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - chartdb-network
+
+volumes:
+  redis-data:
+    driver: local
+
+networks:
+  chartdb-network:
+    driver: bridge
